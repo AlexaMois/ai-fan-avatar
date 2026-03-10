@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Fan Avatar MVP</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #111; color: #eee; }
+        .container { width: 90%; max-width: 600px; margin-top: 50px; text-align: center; }
+        .preview-circle { width: 300px; height: 300px; border-radius: 50%; border: 2px dashed #555; margin: 20px auto; overflow: hidden; position: relative; }
+        .preview-circle img { width: 100%; height: 100%; object-fit: cover; }
+        textarea { width: 100%; height: 80px; margin: 10px 0; border-radius: 8px; padding: 10px; background: #222; color: #fff; border: 1px solid #444; }
+        button { padding: 12px 24px; border-radius: 20px; border: none; background: #007bff; color: #fff; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Fan Avatar MVP</h1>
+        <p>Создание контента для голографического вентилятора</p>
+        <div class="preview-circle">
+            <img src="https://via.placeholder.com/300?text=Avatar+Preview" alt="Preview">
+        </div>
+        <textarea id="textInput" placeholder="Введите текст сообщения (например: Добро пожаловать на смену!)"></textarea>
+        <button onclick="generateVideo()">Сгенерировать MP4</button>
+        <div id="status" style="margin-top: 20px;"></div>
+    </div>
+    <script>
+        function generateVideo() {
+            const text = document.getElementById('textInput').value;
+            const status = document.getElementById('status');
+            if(!text) return alert('Введите текст');
+            status.innerText = 'Генерация... (симуляция API HeyGen)';
+            setTimeout(() => {
+                status.innerHTML = '<p>Готово! Видео адаптировано под круг 1024x1024.</p><a href="#" style="color: #007bff">Скачать MP4 для SD-карты</a>';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
