@@ -30,7 +30,7 @@ app.post('/api/generate', async (req, res) => {
       voice: {
         type: 'text',
         input_text: text,
-        voice_id: 'ru-RU-DmitryNeural'
+        voice_id: process.env.VOICE_ID || "00e8bacc09004f84a01c97c33f53e0b4"
       }
     }],
     dimension: { width: 1024, height: 1024 }
