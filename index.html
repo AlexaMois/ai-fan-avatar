@@ -3,37 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Fan Avatar MVP</title>
+    <title>HeyGen AI Avatar для вентилятора</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #111; color: #eee; }
-        .container { width: 90%; max-width: 600px; margin-top: 50px; text-align: center; }
-        .preview-circle { width: 300px; height: 300px; border-radius: 50%; border: 2px dashed #555; margin: 20px auto; overflow: hidden; position: relative; }
-        .preview-circle img { width: 100%; height: 100%; object-fit: cover; }
-        textarea { width: 100%; height: 80px; margin: 10px 0; border-radius: 8px; padding: 10px; background: #222; color: #fff; border: 1px solid #444; }
-        button { padding: 12px 24px; border-radius: 20px; border: none; background: #007bff; color: #fff; cursor: pointer; font-weight: bold; }
-        button:hover { background: #0056b3; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { background: #fff; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 700px; width: 100%; padding: 40px; }
+        h1 { color: #333; margin-bottom: 10px; font-size: 28px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .step { margin-bottom: 25px; }
+        .step-title { font-weight: bold; color: #667eea; margin-bottom: 10px; display: flex; align-items: center; }
+        .step-num { background: #667eea; color: #fff; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 14px; }
+        input[type="text"], textarea, select { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: border 0.3s; }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #667eea; }
+        textarea { min-height: 100px; resize: vertical; font-family: inherit; }
+        button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border: none; padding: 14px 28px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; width: 100%; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3); }
+        button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        .preview-circle { width: 300px; height: 300px; border-radius: 50%; border: 3px dashed #667eea; margin: 20px auto; overflow: hidden; background: #f9f9f9; display: flex; align-items: center; justify-content: center; }
+        .preview-circle video { width: 100%; height: 100%; object-fit: cover; }
+        .status { margin-top: 20px; padding: 15px; border-radius: 10px; text-align: center; }
+        .status.loading { background: #fff3cd; color: #856404; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .hidden { display: none; }
+        .download-btn { background: #28a745; margin-top: 15px; }
+        .download-btn:hover { background: #218838; }
+        .info { background: #e7f3ff; padding: 12px; border-radius: 8px; font-size: 13px; color: #004085; margin-bottom: 20px; border-left: 4px solid #667eea; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>AI Fan Avatar MVP</h1>
-        <p>Создание контента для голографического вентилятора</p>
-        <div class="preview-circle">
-            <img src="https://via.placeholder.com/300?text=Avatar+Preview" alt="Preview">
+        <h1>🎬 HeyGen AI Avatar MVP</h1>
+        <p class="subtitle">Генерация видео для голографического вентилятора CREPESS300</p>
+        
+        <div class="info">
+            💡 <strong>Как получить API ключ:</strong> Зайдите в <a href="https://app.heygen.com/" target="_blank">HeyGen Dashboard</a> → Settings → API → Generate API Key
         </div>
-        <textarea id="textInput" placeholder="Введите текст сообщения (например: Добро пожаловать на смену!)"></textarea>
-        <button onclick="generateVideo()">Сгенерировать MP4</button>
-        <div id="status" style="margin-top: 20px;"></div>
+
+        <div class="step">
+            <div class="step-title"><span class="step-num">1</span> API Ключ HeyGen</div>
+            <input type="text" id="apiKey" placeholder="Введите ваш HeyGen API ключ">
+        </div>
+
+        <div class="step">
+            <div class="step-title"><span class="step-num">2</span> Выберите аватар</div>
+            <select id="avatarSelect">
+                <option value="">Сначала введите API ключ выше</option>
+            </select>
+        </div>
+
+        <div class="step">
+            <div class="step-title"><span class="step-num">3</span> Текст для озвучки</div>
+            <textarea id="textInput" placeholder="Например: Добро пожаловать на смену! Не забудьте надеть СИЗ."></textarea>
+        </div>
+
+        <button onclick="generateVideo()" id="generateBtn">Сгенерировать видео</button>
+
+        <div id="status" class="status hidden"></div>
+
+        <div class="preview-circle hidden" id="previewContainer">
+            <video id="videoPreview" controls></video>
+        </div>
+
+        <button class="download-btn hidden" id="downloadBtn" onclick="downloadVideo()">Скачать MP4 для вентилятора</button>
     </div>
+
     <script>
-        function generateVideo() {
-            const text = document.getElementById('textInput').value;
+        const API_BASE = 'https://api.heygen.com';
+        let currentVideoId = null;
+        let videoUrl = null;
+
+        document.getElementById('apiKey').addEventListener('input', async (e) => {
+            const key = e.target.value.trim();
+            if(key.length > 20) {
+                await loadAvatars(key);
+            }
+        });
+
+        async function loadAvatars(apiKey) {
+            try {
+                const response = await fetch(`${API_BASE}/v2/avatars`, {
+                    headers: { 'X-Api-Key': apiKey }
+                });
+                const data = await response.json();
+                
+                const select = document.getElementById('avatarSelect');
+                select.innerHTML = '<option value="">Выберите аватар</option>';
+                
+                if(data.data && data.data.avatars) {
+                    data.data.avatars.slice(0, 20).forEach(avatar => {
+                        const option = document.createElement('option');
+                        option.value = avatar.avatar_id;
+                        option.textContent = avatar.avatar_name || avatar.avatar_id;
+                        select.appendChild(option);
+                    });
+                }
+            } catch(err) {
+                showStatus('Ошибка загрузки аватаров. Проверьте API ключ.', 'error');
+            }
+        }
+
+        async function generateVideo() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const avatarId = document.getElementById('avatarSelect').value;
+            const text = document.getElementById('textInput').value.trim();
+
+            if(!apiKey || !avatarId || !text) {
+                showStatus('Заполните все поля!', 'error');
+                return;
+            }
+
+            showStatus('Генерируем видео...', 'loading');
+            document.getElementById('generateBtn').disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/v2/video/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Api-Key': apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        video_inputs: [{
+                            character: {
+                                type: 'avatar',
+                                avatar_id: avatarId
+                            },
+                            voice: {
+                                type: 'text',
+                                input_text: text
+                            }
+                        }],
+                        dimension: {
+                            width: 1024,
+                            height: 1024
+                        },
+                        aspect_ratio: '1:1'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if(data.data && data.data.video_id) {
+                    currentVideoId = data.data.video_id;
+                    showStatus('Видео в обработке... Проверяем статус', 'loading');
+                    checkVideoStatus(apiKey, currentVideoId);
+                } else {
+                    throw new Error(data.message || 'Ошибка генерации');
+                }
+            } catch(err) {
+                showStatus(`Ошибка: ${err.message}`, 'error');
+                document.getElementById('generateBtn').disabled = false;
+            }
+        }
+
+        async function checkVideoStatus(apiKey, videoId) {
+            try {
+                const response = await fetch(`${API_BASE}/v1/video_status.get?video_id=${videoId}`, {
+                    headers: { 'X-Api-Key': apiKey }
+                });
+                const data = await response.json();
+                
+                if(data.data.status === 'completed') {
+                    videoUrl = data.data.video_url;
+                    showStatus('✅ Видео готово!', 'success');
+                    document.getElementById('videoPreview').src = videoUrl;
+                    document.getElementById('previewContainer').classList.remove('hidden');
+                    document.getElementById('downloadBtn').classList.remove('hidden');
+                    document.getElementById('generateBtn').disabled = false;
+                } else if(data.data.status === 'failed') {
+                    showStatus('❌ Ошибка генерации видео', 'error');
+                    document.getElementById('generateBtn').disabled = false;
+                } else {
+                    setTimeout(() => checkVideoStatus(apiKey, videoId), 5000);
+                }
+            } catch(err) {
+                showStatus('Ошибка проверки статуса', 'error');
+            }
+        }
+
+        function showStatus(message, type) {
             const status = document.getElementById('status');
-            if(!text) return alert('Введите текст');
-            status.innerText = 'Генерация... (симуляция API HeyGen)';
-            setTimeout(() => {
-                status.innerHTML = '<p>Готово! Видео адаптировано под круг 1024x1024.</p><a href="#" style="color: #007bff">Скачать MP4 для SD-карты</a>';
-            }, 2000);
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.classList.remove('hidden');
+        }
+
+        async function downloadVideo() {
+            if(!videoUrl) return;
+            const a = document.createElement('a');
+            a.href = videoUrl;
+            a.download = `avatar_${Date.now()}.mp4`;
+            a.click();
         }
     </script>
 </body>
