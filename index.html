@@ -108,7 +108,7 @@
 
             if (data.data && data.data.video_id) {
                 showStatus('⏳ Видео создаётся... обычно 20–60 секунд', 'loading');
-                pollStatus(data.data.video_id), 0);
+                pollStatus(data.data.video_id, 0);
             } else {
                 throw new Error(data.message || data.error || JSON.stringify(data));
             }
