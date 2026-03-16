@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const https = require('https');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -8,17 +9,38 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(__dirname));
 app.use(express.json());
 
-const API_KEY = process.env.HEYGEN_API_KEY || '';
-const AVATAR_ID = process.env.AVATAR_ID || 'b8702cda44ca4a628558962969025a2b';
+// Конфиг из env-переменных — никаких значений по умолчанию в коде
+const API_KEY   = process.env.HEYGEN_API_KEY;
+const AVATAR_ID = process.env.AVATAR_ID;
+const VOICE_ID  = process.env.VOICE_ID;
+
+if (!API_KEY || !AVATAR_ID || !VOICE_ID) {
+  console.error('ERROR: Не заданы HEYGEN_API_KEY, AVATAR_ID или VOICE_ID. Проверьте файл .env');
+  process.exit(1);
+}
+
+// Rate limit: не более 10 запросов в 15 минут с одного IP
+const generateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Превышен лимит запросов. Попробуйте через 15 минут.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Proxy: генерация видео
-app.post('/api/generate', async (req, res) => {
+app.post('/api/generate', generateLimiter, async (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: 'Текст не передан' });
+
+  const MAX_CHARS = 1000;
+  if (text.length > MAX_CHARS) {
+    return res.status(400).json({ error: `Текст слишком длинный. Максимум ${MAX_CHARS} символов.` });
+  }
 
   const payload = JSON.stringify({
     video_inputs: [{
@@ -30,7 +52,7 @@ app.post('/api/generate', async (req, res) => {
       voice: {
         type: 'text',
         input_text: text,
-        voice_id: process.env.VOICE_ID || "00e8bacc09004f84a01c97c33f53e0b4"
+        voice_id: VOICE_ID
       }
     }],
     dimension: { width: 1024, height: 1024 }
@@ -88,6 +110,23 @@ app.get('/api/status/:videoId', (req, res) => {
 
   heygenReq.on('error', (e) => res.status(500).json({ error: e.message }));
   heygenReq.end();
+});
+
+// Proxy: скачивание видео через сервер (обход CORS)
+app.get('/api/download', (req, res) => {
+  const { url } = req.query;
+  if (!url || !url.startsWith('https://')) {
+    return res.status(400).json({ error: 'Некорректный URL' });
+  }
+
+  res.setHeader('Content-Disposition', `attachment; filename="avatar_${Date.now()}.mp4"`);
+  res.setHeader('Content-Type', 'video/mp4');
+
+  https.get(url, (videoRes) => {
+    videoRes.pipe(res);
+  }).on('error', (e) => {
+    res.status(500).json({ error: 'Ошибка скачивания: ' + e.message });
+  });
 });
 
 app.listen(PORT, () => {
