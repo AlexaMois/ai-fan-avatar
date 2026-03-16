@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const path = require('path');
 const https = require('https');
@@ -9,21 +11,21 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(__dirname));
 app.use(express.json());
 
-// Конфиг из env-переменных — никаких значений по умолчанию в коде
+// Конфиг из env-переменных — никаких значений по умолчанию
 const API_KEY   = process.env.HEYGEN_API_KEY;
 const AVATAR_ID = process.env.AVATAR_ID;
 const VOICE_ID  = process.env.VOICE_ID;
 
 if (!API_KEY || !AVATAR_ID || !VOICE_ID) {
-  console.error('ERROR: Не заданы HEYGEN_API_KEY, AVATAR_ID или VOICE_ID. Проверьте файл .env');
+  console.error('ERROR: Не заданы HEYGEN_API_KEY, AVATAR_ID или VOICE_ID в .env');
   process.exit(1);
 }
 
-// Rate limit: не более 10 запросов в 15 минут с одного IP
+// Rate limit: не более 10 запросов в час с одного IP на /api/generate
 const generateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 60 * 60 * 1000,
   max: 10,
-  message: { error: 'Превышен лимит запросов. Попробуйте через 15 минут.' },
+  message: { error: 'Слишком много запросов. Попробуйте через час.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -32,14 +34,19 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Proxy: генерация видео
+// Генерация видео
 app.post('/api/generate', generateLimiter, async (req, res) => {
   const { text } = req.body;
-  if (!text) return res.status(400).json({ error: 'Текст не передан' });
 
-  const MAX_CHARS = 1000;
-  if (text.length > MAX_CHARS) {
-    return res.status(400).json({ error: `Текст слишком длинный. Максимум ${MAX_CHARS} символов.` });
+  if (!text) {
+    return res.status(400).json({ error: 'Текст не передан' });
+  }
+
+  // Валидация длины (HeyGen лимит ~5000 символов, берём с запасом)
+  if (text.length > 4000) {
+    return res.status(400).json({
+      error: `Текст слишком длинный: ${text.length} символов. Максимум — 4000.`
+    });
   }
 
   const payload = JSON.stringify({
@@ -75,7 +82,7 @@ app.post('/api/generate', generateLimiter, async (req, res) => {
     heygenRes.on('end', () => {
       try {
         res.json(JSON.parse(data));
-      } catch(e) {
+      } catch (e) {
         res.status(500).json({ error: 'Ошибка парсинга ответа HeyGen', raw: data });
       }
     });
@@ -86,9 +93,10 @@ app.post('/api/generate', generateLimiter, async (req, res) => {
   heygenReq.end();
 });
 
-// Proxy: статус видео
+// Статус видео
 app.get('/api/status/:videoId', (req, res) => {
   const { videoId } = req.params;
+
   const options = {
     hostname: 'api.heygen.com',
     path: `/v1/video_status.get?video_id=${videoId}`,
@@ -102,7 +110,7 @@ app.get('/api/status/:videoId', (req, res) => {
     heygenRes.on('end', () => {
       try {
         res.json(JSON.parse(data));
-      } catch(e) {
+      } catch (e) {
         res.status(500).json({ error: 'Ошибка парсинга', raw: data });
       }
     });
@@ -112,18 +120,38 @@ app.get('/api/status/:videoId', (req, res) => {
   heygenReq.end();
 });
 
-// Proxy: скачивание видео через сервер (обход CORS)
+// Проксирование скачивания — решает CORS-проблему в браузерах
 app.get('/api/download', (req, res) => {
   const { url } = req.query;
+
   if (!url || !url.startsWith('https://')) {
     return res.status(400).json({ error: 'Некорректный URL' });
+  }
+
+  // Разрешаем только домены HeyGen CDN
+  const allowed = [
+    'heygen-studio.s3.amazonaws.com',
+    'files.heygen.ai',
+    'resource.heygen.ai',
+    'storage.googleapis.com'
+  ];
+
+  let hostname;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return res.status(400).json({ error: 'Невалидный URL' });
+  }
+
+  if (!allowed.some(d => hostname.endsWith(d))) {
+    return res.status(403).json({ error: 'Домен не разрешён для скачивания' });
   }
 
   res.setHeader('Content-Disposition', `attachment; filename="avatar_${Date.now()}.mp4"`);
   res.setHeader('Content-Type', 'video/mp4');
 
-  https.get(url, (videoRes) => {
-    videoRes.pipe(res);
+  https.get(url, (fileRes) => {
+    fileRes.pipe(res);
   }).on('error', (e) => {
     res.status(500).json({ error: 'Ошибка скачивания: ' + e.message });
   });

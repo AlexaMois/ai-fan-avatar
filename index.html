@@ -73,6 +73,7 @@
 
 <script>
     let videoUrl = null;
+        const MAX_POLL_ATTEMPTS = 10; // ~60 секунд при интервале 6с
 
     function setPreset(text) {
         document.getElementById('textInput').value = text;
@@ -82,6 +83,12 @@
         const text = document.getElementById('textInput').value.trim();
         if (!text) {
             showStatus('⚠️ Введите текст для озвучки', 'error');
+            return;
+        }
+
+                // Клиентская валидация длины до отправки на сервер
+        if (text.length > 4000) {
+            showStatus(`⚠️ Текст слишком длинный: ${text.length}/4000 символов`, 'error');
             return;
         }
 
@@ -101,7 +108,7 @@
 
             if (data.data && data.data.video_id) {
                 showStatus('⏳ Видео создаётся... обычно 20–60 секунд', 'loading');
-                pollStatus(data.data.video_id);
+                pollStatus(data.data.video_id), 0);
             } else {
                 throw new Error(data.message || data.error || JSON.stringify(data));
             }
@@ -111,11 +118,17 @@
         }
     }
 
-    async function pollStatus(videoId) {
+    async function pollStatus(videoId, attempt) {
+        // Таймаут: если за MAX_POLL_ATTEMPTS не готово — останавливаемся
+        if (attempt >= MAX_POLL_ATTEMPTS) {
+            showStatus('⏱️ Превышено время ожидания. Видео ещё генерируется — попробуйте обновить страницу через минуту.', 'error');
+            resetBtn();
+            return;
+        }
+
         try {
             const res = await fetch(`/api/status/${videoId}`);
             const data = await res.json();
-            console.log('Poll status:', data);
 
             const status = data.data && data.data.status;
             if (status === 'completed') {
@@ -128,8 +141,8 @@
                 showStatus('❌ HeyGen вернул ошибку: ' + (data.data.error || 'неизвестно'), 'error');
                 resetBtn();
             } else {
-                showStatus('⏳ Статус: ' + (status || 'processing') + '...', 'loading');
-                setTimeout(() => pollStatus(videoId), 6000);
+                showStatus(`⏳ Статус: ${status || 'processing'}... (попытка ${attempt + 1}/${MAX_POLL_ATTEMPTS})`, 'loading');
+                setTimeout(() => pollStatus(videoId, attempt + 1), 6000);
             }
         } catch (e) {
             showStatus('❌ Ошибка проверки: ' + e.message, 'error');
@@ -149,12 +162,10 @@
         btn.textContent = '🎬 Сгенерировать видео';
     }
 
+    // Скачивание через серверный proxy — решает CORS-проблему в браузерах
     function downloadVideo() {
         if (!videoUrl) return;
-        const a = document.createElement('a');
-        a.href = videoUrl;
-        a.download = 'avatar_' + Date.now() + '.mp4';
-        a.click();
+        window.location.href = `/api/download?url=${encodeURIComponent(videoUrl)}`;
     }
 </script>
 </body>
