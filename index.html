@@ -110,7 +110,7 @@
                 showStatus('⏳ Видео создаётся... обычно 20–60 секунд', 'loading');
                 pollStatus(data.data.video_id, 0);
             } else {
-                throw new Error(data.message || data.error || JSON.stringify(data));
+                throw new Error(data.message || (typeof data.error === 'object' && data.error ? JSON.stringify(data.error) : data.error) || JSON.stringify(data));
             }
         } catch (e) {
             showStatus('❌ Ошибка: ' + e.message, 'error');
@@ -138,7 +138,7 @@
                 document.getElementById('previewWrap').style.display = 'block';
                 resetBtn();
             } else if (status === 'failed') {
-                showStatus('❌ HeyGen вернул ошибку: ' + (data.data.error || 'неизвестно'), 'error');
+                showStatus('❌ HeyGen вернул ошибку: ' + (typeof data.data.error === 'object' && data.data.error ? JSON.stringify(data.data.error) : (data.data.error || JSON.stringify(data.data))), 'error');
                 resetBtn();
             } else {
                 showStatus(`⏳ Статус: ${status || 'processing'}... (попытка ${attempt + 1}/${MAX_POLL_ATTEMPTS})`, 'loading');
