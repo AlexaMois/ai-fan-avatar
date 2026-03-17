@@ -1,194 +1,280 @@
 # 🌀 Голографический AI-аватар для CREPESS300
 
-**НейроРешения** — веб-приложение для генерации видео с говорящим AI-аватаром, адаптированного под круглый экран голографического вентилятора.
+**НейроРешения** — веб-приложение для генерации видеороликов с говорящим AI-аватаром через HeyGen API.
+
+Видео предназначено для воспроизведения на голографическом вентиляторе **CREPESS300** (пропеллерный 3D-дисплей).
 
 ---
 
-## 📌 Что это такое
+## 🚀 Демо
 
-Проект превращает текст → в видео с говорящим аватаром (через HeyGen API) → в MP4, который загружается на microSD вентилятора CREPESS300. Результат: аватар «висит в воздухе» и говорит голосом.
-
-**Целевое применение:** информирование сотрудников на проходной, вахтовые объекты, ресепшн, торговые точки.
+**Live:** https://ai-fan-avatar-production.up.railway.app
 
 ---
 
-## 🏗️ Архитектура
+## 📋 Суть проекта
+
+**Кейс использования:** промышленное предприятие / вахта.
+
+1. Оператор вводит текст (например: "Добро пожаловать на смену!")
+2. Нажимает кнопку генерации
+3. HeyGen API создаёт видео с говорящим аватаром (1024×1024px, круглое)
+4. Пользователь скачивает MP4
+5. Конвертирует в `.bin` через ПО вентилятора
+6. Запускает на голографическом дисплее CREPESS300
+
+---
+
+## 🏗️ Технический стек
+
+| Компонент | Технология |
+|---|---|
+| Бэкенд | Node.js + Express |
+| Фронтенд | Vanilla HTML/CSS/JS |
+| AI-генерация | HeyGen API v2 |
+| Хостинг | Railway |
+| Репозиторий | GitHub |
+| Rate Limiting | express-rate-limit |
+
+---
+
+## 📁 Структура проекта
 
 ```
-Браузер (index.html)
-  │  POST /api/generate  →  server.js
-  │                              │
-  │                         HeyGen API
-  │                         (v2/video/generate)
-  │  GET  /api/status/:id  →  server.js
-  │                              │
-  │                         HeyGen API
-  │                         (v1/video_status.get)
-  ↓
-Got video_url → скачать MP4
+ai-fan-avatar/
+├── index.html       — фронтенд (UI + JavaScript)
+├── server.js        — бэкенд Node.js/Express
+├── package.json     — зависимости
+├── nginx.conf       — конфиг nginx (для HTTPS)
+├── .env.example     — пример переменных окружения
+└── README.md
 ```
 
-**Технологии:** Node.js (Express) · HeyGen Streaming API · Vanilla JS · CSS backdrop-filter
+---
+
+## ⚙️ Архитектура
+
+```
+Browser (index.html)
+     ↓
+     POST /api/generate { text: "..." }
+     ↓
+Express Server (server.js)
+     ↓
+     HTTPS → api.heygen.com/v2/video/generate
+     ↓
+HeyGen API
+     ↓
+     returns { data: { video_id: "..." } }
+     ↓
+Polling GET /api/status/:videoId (каждые 6 сек)
+     ↓
+HeyGen API → /v1/video_status.get
+     ↓
+     status: processing → completed → video_url
+     ↓
+Browser показывает видео + кнопка скачивания
+     ↓
+     GET /api/download?url=<CDN_URL>
+     ↓
+Express проксирует файл (решает CORS) → Browser скачивает MP4
+```
+
+---
+
+## 🔑 Переменные окружения
+
+### `.env.example`:
+```bash
+HEYGEN_API_KEY=your_heygen_api_key_here
+AVATAR_ID=your_avatar_id_here
+VOICE_ID=your_voice_id_here
+PORT=3000
+```
+
+### Где взять ключи:
+
+1. **HEYGEN_API_KEY**
+   - Зайти в https://app.heygen.com
+   - Перейти в раздел **API** → **API Keys**
+   - Создать новый ключ или скопировать существующий
+   - Формат: `sk_V2_...`
+
+2. **AVATAR_ID**
+   - Перейти в https://app.heygen.com/avatars
+   - Выбрать нужный аватар
+   - Скопировать ID из URL или через API
+   - Формат: UUID (например: `b8702cda-44ca-4a62-8558-962960925a2b`)
+
+3. **VOICE_ID**
+   - Перейти в https://app.heygen.com/voices
+   - Выбрать нужный голос (русский или другой язык)
+   - Скопировать Voice ID
+   - Формат: UUID (например: `00e8bacc-0900-4f84-a01c-97c33f53e0b4`)
+
+> ⚠️ **ВАЖНО:** `PORT` НЕ нужно устанавливать в Railway — Railway сам предоставляет `$PORT`. Установка вручную вызовет 502 ошибку.
 
 ---
 
 ## 🚀 Быстрый старт (локально)
 
-### 1. Клонировать репозиторий
 ```bash
-git clone https://github.com/AlexaMois/ai-fan-avatar.git
+git clone https://github.com/AlexaMois/ai-fan-avatar
 cd ai-fan-avatar
-```
-
-### 2. Установить зависимости
-```bash
 npm install
-```
-
-### 3. Задать переменные окружения
-```bash
-export HEYGEN_API_KEY=ваш_ключ_heygen
-export AVATAR_ID=b8702cda44ca4a628558962969025a2b
-```
-Или создать файл `.env` (если добавить `dotenv`):
-```
-HEYGEN_API_KEY=sk_V2_...
-AVATAR_ID=b8702cda44ca4a628558962969025a2b
-```
-
-### 4. Запустить
-```bash
-npm start
-# → http://localhost:3000
+cp .env.example .env
+# Заполнить .env: HEYGEN_API_KEY, AVATAR_ID, VOICE_ID
+node server.js
+# Открыть http://localhost:3000
 ```
 
 ---
 
-## ☁️ Деплой на Render.com
+## 📡 API Эндпоинты
 
-1. Зайти на [render.com](https://render.com) → New → Web Service
-2. Подключить репозиторий `AlexaMois/ai-fan-avatar`
-3. Build command: `npm install`
-4. Start command: `node server.js`
-5. Environment Variables → Add:
-   - `HEYGEN_API_KEY` = ваш ключ
-   - `AVATAR_ID` = `b8702cda44ca4a628558962969025a2b`
-6. Deploy!
-
-> ⚠️ На бесплатном тире Render сервис «засыпает» после 15 мин неактивности. Первый запрос может занять 30–60 сек.
-
----
-
-## 🔌 API Endpoints
+### `GET /`
+Отдаёт `index.html`
 
 ### `POST /api/generate`
-Запускает генерацию видео.
-
-**Body:**
-```json
-{ "text": "Добро пожаловать на смену!" }
-```
-
-**Response (success):**
-```json
-{
-  "data": {
-    "video_id": "abc123"
-  }
-}
-```
-
----
+- Принимает `{ text: string }`
+- Валидация: текст обязателен, максимум **4000 символов**
+- Rate limit: **10 запросов в час с одного IP**
+- Отправляет запрос в HeyGen API для генерации видео
+- Возвращает `{ data: { video_id: "..." } }`
 
 ### `GET /api/status/:videoId`
-Проверяет статус и возвращает ссылку на видео.
+- Проверяет статус генерации видео
+- Возвращает: `processing` / `completed` / `failed`
+- При `completed` содержит `data.video_url`
 
-**Response (completed):**
+### `GET /api/download?url=<CDN_URL>`
+- Проксирует скачивание с CDN HeyGen (решает CORS)
+- Whitelist доменов:
+  - `heygen-studio.s3.amazonaws.com`
+  - `files.heygen.ai`
+  - `resource.heygen.ai`
+  - `storage.googleapis.com`
+
+---
+
+## 🛡️ Безопасность и надёжность
+
+| Проблема | Решение |
+|---|---|
+| Нет rate limiting | Добавлен `express-rate-limit` (10 req/час/IP) |
+| Нет валидации длины текста | Проверка: максимум 4000 символов (клиент + сервер) |
+| Бесконечный поллинг | `MAX_POLL_ATTEMPTS = 10` (~60 секунд) |
+| Download CORS | Прокси `/api/download` с whitelist доменов |
+| Захардкоженные ID | Вынесены в переменные окружения |
+
+---
+
+## 🐛 Известные проблемы
+
+### `TTS_VOICE_UNAVAILABLE_ERR`
+
+Если при генерации видео появляется ошибка:
 ```json
 {
-  "data": {
-    "status": "completed",
-    "video_url": "https://cdn.heygen.com/..."
-  }
+  "code": "TTS_VOICE_UNAVAILABLE_ERR",
+  "message": "Voice validation failed for 1 voice(s)"
 }
 ```
 
-**Статусы:** `pending` → `processing` → `completed` / `failed`
+**Причина:** `VOICE_ID` не существует в вашем HeyGen аккаунте.
+
+**Решение:**
+1. Зайти в https://app.heygen.com/voices
+2. Выбрать нужный голос (русский или другой язык)
+3. Скопировать корректный Voice ID
+4. Обновить переменную `VOICE_ID` в Railway или `.env`
 
 ---
 
-## 📲 Загрузка на вентилятор CREPESS300
+## 🚢 Деплой на Railway
 
-| Шаг | Действие |
-|-----|----------|
-| 1 | Сгенерировать видео в интерфейсе |
-| 2 | Скачать MP4 (кнопка «Скачать») |
-| 3 | Вставить microSD в ПК |
-| 4 | Запустить ПО с карты (Windows) |
-| 5 | Импортировать MP4 → конвертировать в `.bin` |
-| 6 | Скопировать `1.bin`, `2.bin`... в корень SD |
-| 7 | Вставить SD в вентилятор, включить |
+1. Зарегистрироваться на https://railway.app
+2. Создать новый проект → **Deploy from GitHub repo**
+3. Выбрать репозиторий `AlexaMois/ai-fan-avatar`
+4. Добавить переменные окружения:
+   - `HEYGEN_API_KEY`
+   - `AVATAR_ID`
+   - `VOICE_ID`
+5. Railway автоматически развернёт приложение
+6. Получить публичный URL в разделе **Settings → Networking → Generate Domain**
 
-**Рекомендуемые параметры:**
-- Разрешение: 1024×1024 px (квадрат)
-- Длительность: 10–15 сек на ролик
-- Формат: MP4, H.264
+**CI/CD:** При каждом `push` в ветку `main` Railway автоматически запускает новый деплой.
 
 ---
 
-## 🎯 Готовые сценарии (вахта)
+## 📚 Документация HeyGen API
 
-1. **Приветствие смены** — «Добро пожаловать! Желаем продуктивной работы.»
-2. **СИЗ** — «Наденьте каску, перчатки, очки перед входом в цех.»
-3. **Экстренные номера** — охрана 101, медпункт 103
-4. **Объявление** — плановая проверка, изменение графика
-5. **ОТ-месяц** — «Этот месяц — пожарная безопасность»
+- **Официальная документация:** https://docs.heygen.com
+- **Generate Video API:** https://docs.heygen.com/reference/create-an-avatar-video-v2
+- **Video Status API:** https://docs.heygen.com/reference/video-status
 
 ---
 
-## 🗺️ Roadmap (что строить дальше)
+## 🔧 Технические детали
 
-### MVP+1 (ближайшие 2–4 недели)
-- [ ] `.env` + `dotenv` для безопасного хранения ключей
-- [ ] Русскоязычный голос TTS (ElevenLabs / Yandex SpeechKit)
-- [ ] Библиотека фраз: выбор из списка без ввода
-- [ ] Admin-панель: история генераций, повторное скачивание
+### Payload для генерации видео:
+```json
+{
+  "video_inputs": [{
+    "character": {
+      "type": "avatar",
+      "avatar_id": "<AVATAR_ID>",
+      "avatar_style": "normal"
+    },
+    "voice": {
+      "type": "text",
+      "input_text": "<текст>",
+      "voice_id": "<VOICE_ID>"
+    }
+  }],
+  "dimension": { "width": 1024, "height": 1024 }
+}
+```
 
-### MVP+2 (1–2 месяца)
-- [ ] Telegram-бот: отправил текст → получил MP4
-- [ ] Расписание показов (плейлист утро/день/ночь)
-- [ ] Raspberry Pi у вентилятора → авто-обновление по Wi-Fi
-- [ ] Мультиязычность (казахский, английский)
+### Разрешение видео:
+- **1024×1024px** — оптимально для CREPESS300 (экран 1024×600)
+- Видео генерируется в круглой форме для голографического отображения
 
-### Scale (3+ месяца)
-- [ ] Личный кабинет: несколько объектов, несколько устройств
-- [ ] Интеграция с HR-системами (1С, Битрикс24)
-- [ ] Аналитика просмотров (датчик движения + счётчик)
-- [ ] Собственный аватар клиента (фото → HeyGen Photo Avatar)
-
----
-
-## 💰 ROI-калькулятор (ориентир)
-
-| Параметр | Значение |
-|----------|----------|
-| Устройство CREPESS300 | 3 000 – 9 000 ₽ |
-| Подписка HeyGen (Creator) | ~$29/мес |
-| Время на обновление контента | 15–20 мин / 2 нед |
-| Экономия на печати объявлений | ~2 000 ₽/мес |
-| Окупаемость | 2–4 месяца |
+### Поллинг статуса:
+- Интервал: **6 секунд**
+- Максимальное количество попыток: **10** (~60 секунд)
+- При превышении времени → пользователь получает уведомление
 
 ---
 
-## 🔐 Безопасность
+## 📝 Changelog
 
-- **Никогда** не хардкодьте API-ключ в `index.html` — браузер виден всем!
-- Используйте переменные окружения на сервере (`process.env.HEYGEN_API_KEY`)
-- В продакшне добавьте rate limiting (например, `express-rate-limit`)
+### v1.2.0 — 2026-03-17
+- ✅ Исправлена ошибка `[object Object]` в сообщениях об ошибках HeyGen API
+- ✅ Добавлена проверка типа для объектов ошибок + JSON.stringify
+
+### v1.1.0 — 2026-03-16
+- ✅ Исправлена синтаксическая ошибка в `pollStatus` вызове
+- ✅ Добавлен таймаут поллинга (10 попыток)
+- ✅ Добавлен rate limiting (10 req/час/IP)
+- ✅ Добавлена валидация длины текста (4000 символов)
+- ✅ Вынесены `AVATAR_ID` и `VOICE_ID` в переменные окружения
+- ✅ Добавлен прокси для скачивания файлов (решение CORS)
+
+### v1.0.0 — MVP
+- ✅ Базовая генерация видео через HeyGen API
+- ✅ Простой UI с готовыми фразами
+- ✅ Круглый превью для имитации голографического дисплея
 
 ---
 
-## 👩‍💻 Автор
+## 📄 Лицензия
 
-**Александра Моисеева** — AI Strategy Consultant & Founder, НейроРешения  
-🌐 [aleksamois.ru](https://aleksamois.ru) · ✉️ ai@aleksamois.ru · 📱 t.me/aleksamois
+MIT License
+
+---
+
+## 🤝 Контакты
+
+Репозиторий: https://github.com/AlexaMois/ai-fan-avatar  
+Issues: https://github.com/AlexaMois/ai-fan-avatar/issues
